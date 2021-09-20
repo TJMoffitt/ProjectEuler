@@ -14,16 +14,18 @@ NOTE: Once the chain starts the terms are allowed to go above one million."""
 
 totalLengths = [False]*1000000
 totalLengths[0] = 1
-for n in range(0,1000000):
+for n in range(1,1000000):
     iterations = 0
-    nTemp = n + 1
-    while totalLengths[nTemp] == False and nTemp != 1:
-        if nTemp%2 == 0:
-            nTemp = int(nTemp/2)
+    nTemp = n
+    while totalLengths[nTemp % 1000000] == False or nTemp >= 1000000 and nTemp != 0:
+        if (nTemp+1)%2 == 0:
+            nTemp = int((nTemp+1)/2) -1
             iterations += 1
         else:
-            nTemp = 3*nTemp + 1
+            nTemp = 3*(nTemp+1) + 1 -1
             iterations += 1
     totalLengths[n] = totalLengths[nTemp] + iterations
-    print(n)
-    print(totalLengths[0:20])
+  #  print(n)
+    if totalLengths[999999] != False:
+        break
+print(totalLengths.index(max(totalLengths))+1)
