@@ -28,7 +28,7 @@ Find the maximum total from top to bottom of the triangle below:
 NOTE: As there are only 16384 routes, it is possible to solve this problem by trying every route. However, Problem 67, is the same challenge with a triangle containing one-hundred rows; it cannot be solved by brute force, and requires a clever method! ;o)"""
 
 ## find best route to each number for each row and use this for each consecutive iteration
-# how?
+
 
 triangle = """75
 95 64
@@ -46,29 +46,20 @@ triangle = """75
 63 66 04 68 89 53 67 30 73 16 69 87 40 31
 04 62 98 27 23 09 70 98 73 93 38 53 60 04 23""".split("\n")
 
-prevTotals = [[]]*len(triangle)
+prevTotals = [[] for _ in range(len(triangle))]
 prevTotals[0] = [int(triangle[0])]
 
 for columnNumber, row in enumerate(triangle[1:]):
-    print(row)
-    print(prevTotals)
     for rowNumber, number in enumerate(row.split(" ")):
         leftNum = rightNum = 0
         if rowNumber != 0 and rowNumber != columnNumber+1:
-            print(rowNumber)
-            rightNum = triangle[columnNumber-1].split(" ")[rowNumber]
-            leftNum = triangle[columnNumber-1].split(" ")[rowNumber-1]
+            rightNum = prevTotals[columnNumber][rowNumber]
+            leftNum = prevTotals[columnNumber][rowNumber-1]
         elif rowNumber == 0:
-            rightNum = triangle[columnNumber-1].split(" ")[rowNumber]
+            rightNum = prevTotals[columnNumber][rowNumber]
         else:
-            leftNum = triangle[columnNumber-1].split(" ")[rowNumber-1]
-        prevTotals[columnNumber].append(max(int(leftNum),int(rightNum)))
-print(prevTotals)
+            leftNum = prevTotals[columnNumber][rowNumber-1]
+        prevTotals[columnNumber+1].append(max(int(leftNum),int(rightNum))+int(number))
+print(max(prevTotals[-1]))
             
             
-            
-            
-        
-        
-#for row in triangle:
-    
