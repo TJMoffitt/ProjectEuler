@@ -1,0 +1,5 @@
+.env
+profile/
+bids.log
+__pycache__/
+.venv/

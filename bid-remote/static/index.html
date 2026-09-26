@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bid Remote</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --card: #fff; --fg: #1d2127; --muted: #6b7280; --line: #d6d9de; --soft: #eef0f3;
+    --accent: #1f5fa8; --good: #1a7f37; --bad: #b42318; --warn: #b26a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --card: #1b1f25; --fg: #e8eaed; --muted: #9aa1ab; --line: #333a44; --soft: #242a32;
+      --accent: #5b9be6; --good: #3fb760; --bad: #f07167; --warn: #e3a33b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center; padding: 10px 16px;
+           background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  main { max-width: 900px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  input[type=text], input[type=number], input[type=url] {
+    width: 100%; padding: 9px; font-size: 16px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); min-width: 0;
+  }
+  button { padding: 9px 12px; font-size: 15px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+           background: var(--soft); color: var(--fg); white-space: nowrap; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.go { background: var(--good); border-color: var(--good); color: #fff; }
+  button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > .grow { flex: 1 1 160px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .tab-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+  .tab-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .tab-url { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { margin: 10px 0; padding: 8px 10px; border-radius: 6px; color: #fff; font-weight: 600; font-size: 14px; background: #555; }
+  .live { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+  .live div { background: var(--soft); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+  .live b { display: block; font-size: 18px; overflow: hidden; text-overflow: ellipsis; }
+  .live span { font-size: 12px; color: var(--muted); }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .form label { font-size: 13px; font-weight: 600; display: grid; gap: 3px; }
+  .debug { display: flex; gap: 6px; align-items: center; font-size: 14px; margin: 8px 0; }
+  pre.log { font-size: 12px; max-height: 150px; overflow: auto; background: var(--soft); padding: 6px; border-radius: 6px;
+            white-space: pre-wrap; margin: 8px 0 0; }
+  .viewer { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .viewer img { width: 100%; border: 1px solid var(--line); border-radius: 6px; cursor: crosshair; display: block; min-height: 60px; background: var(--soft); }
+  .viewer .row { margin-top: 8px; }
+  .events { list-style: none; margin: 0; padding: 0; font-size: 13px; max-height: 260px; overflow: auto; }
+  .events li { padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .events .bid { color: var(--good); font-weight: 600; }
+  .events .would-bid { color: var(--warn); }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 520px; margin: 0 auto; padding: 10px 14px;
+           border-radius: 8px; background: var(--bad); color: #fff; display: none; z-index: 10; }
+  .empty { color: var(--muted); padding: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bid Remote</h1>
+  <button class="danger" id="stopAll">Stop all</button>
+  <form method="post" action="/logout" style="margin:0"><button>Log out</button></form>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Open an auction</h2>
+    <form class="row" id="openForm">
+      <input class="grow" type="url" id="openUrl" placeholder="Paste the live bidding page URL" required>
+      <button class="primary">Open</button>
+    </form>
+    <div class="muted" id="capNote" style="margin-top:8px"></div>
+  </section>
+
+  <div id="tabs"></div>
+
+  <section class="card">
+    <h2>Activity</h2>
+    <ul class="events" id="events"></ul>
+  </section>
+
+  <p class="muted">Every real click is a legally binding bid. Keep "Follow" ticked on each auction console.
+    Bids are also written to bids.log on the machine running this.</p>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (n) => (n == null ? "—" : "£" + n.toLocaleString());
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.style.display = "none"), 5000);
+}
+
+async function call(method, url, body) {
+  const res = await fetch(url, {
+    method, headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { location.href = "/login"; throw new Error("logged out"); }
+  const data = res.headers.get("content-type")?.includes("json") ? await res.json() : null;
+  if (!res.ok) {
+    const d = data?.detail;
+    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map((x) => x.msg).join("; ") : res.statusText);
+  }
+  return data;
+}
+const act = (fn) => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== "logged out") toast(e.message); } refresh(); };
+
+// ---- tab cards: built once per tab and updated in place, so typing into them isn't interrupted
+const cards = new Map(); // id -> { el, filled, viewing }
+
+function makeCard(id) {
+  const el = document.createElement("section");
+  el.className = "card";
+  el.innerHTML = `
+    <div class="tab-head"><div class="tab-title"></div><button data-a="close" title="Close tab">✕</button></div>
+    <div class="tab-url"></div>
+    <div class="bidding">
+      <div class="badge"></div>
+      <div class="live">
+        <div><span>Live lot</span><b data-f="lot">—</b></div>
+        <div><span>Current</span><b data-f="current">—</b></div>
+        <div><span>Asking</span><b data-f="ask">—</b></div>
+      </div>
+      <div class="form">
+        <label>Lot number<input type="text" data-i="lot" placeholder="e.g. 164" autocomplete="off"></label>
+        <label>Max bid (£)<input type="number" data-i="max" min="1" step="1" placeholder="e.g. 40"></label>
+      </div>
+      <label class="debug"><input type="checkbox" data-i="debug"> Debug mode (never clicks, logs what it would do)</label>
+      <div class="row"><button class="go grow" data-a="arm">Arm</button><button class="danger grow" data-a="stop">Stop</button></div>
+      <pre class="log" style="display:none"></pre>
+    </div>
+    <div class="muted notlive">Not a live bidding page. Use View to log in or find the live console.</div>
+    <div class="row" style="margin-top:10px"><button data-a="view">View</button></div>
+    <div class="viewer" style="display:none">
+      <img alt="Screenshot of this tab. Tap to click there.">
+      <div class="row">
+        <input class="grow" type="text" data-i="type" placeholder="Type into the page…" autocomplete="off">
+        <button data-a="send">Send</button>
+      </div>
+      <div class="row">
+        <button data-k="Enter">Enter</button><button data-k="Tab">Tab</button>
+        <button data-k="Backspace">⌫</button><button data-k="Escape">Esc</button>
+        <button data-s="-600">▲ Scroll</button><button data-s="600">▼ Scroll</button>
+      </div>
+      <div class="row">
+        <button data-n="back">Back</button><button data-n="reload">Reload</button><button data-n="front">Bring to front</button>
+      </div>
+    </div>`;
+
+  const card = { el, filled: false, viewing: false, shotTimer: null };
+  const input = (n) => $(`[data-i="${n}"]`, el);
+
+  $('[data-a="arm"]', el).onclick = act(async () => {
+    const lot = input("lot").value.trim(), max = parseFloat(input("max").value), debug = input("debug").checked;
+    if (!lot || !(max > 0)) throw new Error("Enter a lot number and a max bid.");
+    if (!debug && !confirm(`Bid on lot ${lot} up to £${max} in this tab? Each click is a binding bid.`)) return;
+    await call("POST", `/api/tabs/${id}/arm`, { lot, max, debug });
+  });
+  $('[data-a="stop"]', el).onclick = act(() => call("POST", `/api/tabs/${id}/stop`));
+  $('[data-a="close"]', el).onclick = act(async () => {
+    if (confirm("Close this tab?")) await call("DELETE", `/api/tabs/${id}`);
+  });
+  $('[data-a="view"]', el).onclick = () => setViewing(card, id, !card.viewing);
+
+  const img = $(".viewer img", el);
+  img.onclick = act(async (e) => {
+    const r = img.getBoundingClientRect();
+    await call("POST", `/api/tabs/${id}/click`, { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
+    setTimeout(() => shot(card, id), 400);
+  });
+  const send = act(async () => {
+    await call("POST", `/api/tabs/${id}/keys`, { text: input("type").value });
+    input("type").value = "";
+    setTimeout(() => shot(card, id), 300);
+  });
+  $('[data-a="send"]', el).onclick = send;
+  input("type").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } };
+  el.querySelectorAll("[data-k]").forEach((b) => (b.onclick = act(async () => {
+    await call("POST", `/api/tabs/${id}/keys`, { key: b.dataset.k }); setTimeout(() => shot(card, id), 300);
+  })));
+  el.querySelectorAll("[data-s]").forEach((b) => (b.onclick = act(async () => {
+    await call("POST", `/api/tabs/${id}/scroll`, { dy: +b.dataset.s }); setTimeout(() => shot(card, id), 300);
+  })));
+  el.querySelectorAll("[data-n]").forEach((b) => (b.onclick = act(async () => {
+    await call("POST", `/api/tabs/${id}/${b.dataset.n}`); setTimeout(() => shot(card, id), 500);
+  })));
+  return card;
+}
+
+function shot(card, id) {
+  const img = $(".viewer img", card.el);
+  const next = new Image();
+  next.onload = () => { if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src); img.src = next.src; };
+  fetch(`/api/tabs/${id}/screenshot`).then((r) => (r.ok ? r.blob() : null)).then((b) => { if (b) next.src = URL.createObjectURL(b); });
+}
+
+function setViewing(card, id, on) {
+  card.viewing = on;
+  $(".viewer", card.el).style.display = on ? "block" : "none";
+  $('[data-a="view"]', card.el).textContent = on ? "Hide view" : "View";
+  clearInterval(card.shotTimer);
+  if (on) { shot(card, id); card.shotTimer = setInterval(() => shot(card, id), 2000); }
+}
+
+function updateCard(card, tab) {
+  const el = card.el, st = tab.status;
+  $(".tab-title", el).textContent = (st?.site ? st.site + " — " : "") + (tab.title || "(untitled)");
+  $(".tab-url", el).textContent = tab.url;
+  const isLive = !!st?.site;
+  $(".bidding", el).style.display = isLive ? "block" : "none";
+  $(".notlive", el).style.display = isLive ? "none" : "block";
+  if (!isLive) return;
+
+  const cfg = st.cfg;
+  const mode = cfg.armed ? (cfg.debug ? "DEBUG" : "ARMED") : "OFF";
+  const badge = $(".badge", el);
+  badge.textContent = `${mode}${cfg.armed ? ` · lot ${cfg.lot} ≤ £${cfg.max}` : ""} — ${st.badge || st.lastMessage || "off"}`;
+  badge.style.background = st.colour || "#555";
+
+  $('[data-f="lot"]', el).textContent = st.live?.lot || "—";
+  $('[data-f="current"]', el).textContent = money(st.live?.current);
+  $('[data-f="ask"]', el).textContent = money(st.live?.ask);
+
+  if (!card.filled) {
+    if (cfg.lot) $('[data-i="lot"]', el).value = cfg.lot;
+    if (cfg.max) $('[data-i="max"]', el).value = cfg.max;
+    $('[data-i="debug"]', el).checked = !!cfg.debug;
+    card.filled = true;
+  }
+  const log = $("pre.log", el);
+  log.style.display = st.log?.length ? "block" : "none";
+  log.textContent = (st.log || []).slice().reverse().join("\n");
+}
+
+function renderEvents(events) {
+  const ul = $("#events");
+  if (!events.length) { ul.innerHTML = '<li class="empty">Nothing yet.</li>'; return; }
+  ul.innerHTML = events.slice().reverse().map((e) => {
+    const t = e.time.slice(11);
+    const what = {
+      "arm": `Armed lot ${esc(e.lot)} up to £${e.max}${e.debug ? " (debug)" : ""}`,
+      "bid": `BID £${e.ask} on lot ${esc(e.lot)} (current ${money(e.current)})`,
+      "would-bid": `Would bid £${e.ask} on lot ${esc(e.lot)} (debug)`,
+      "disarm": `Stopped lot ${esc(e.lot)}: ${esc(e.message)}`,
+    }[e.type] || esc(e.type);
+    return `<li class="${esc(e.type)}">${t} · ${what}</li>`;
+  }).join("");
+}
+
+let busy = false;
+async function refresh() {
+  if (busy) return;
+  busy = true;
+  try {
+    const s = await call("GET", "/api/state");
+    $("#capNote").textContent = (s.cap ? `Overall cap: no max bid above £${s.cap}. ` : "") +
+      (s.headless ? "Browser is running headless: use View to see and control it." : "");
+    const container = $("#tabs");
+    const seen = new Set();
+    for (const tab of s.tabs) {
+      seen.add(tab.id);
+      let card = cards.get(tab.id);
+      if (!card) { card = makeCard(tab.id); cards.set(tab.id, card); container.appendChild(card.el); }
+      updateCard(card, tab);
+    }
+    for (const [id, card] of cards) {
+      if (!seen.has(id)) { clearInterval(card.shotTimer); card.el.remove(); cards.delete(id); }
+    }
+    renderEvents(s.events);
+  } catch (e) {
+    if (e.message !== "logged out") toast("Can't reach the server: " + e.message);
+  } finally { busy = false; }
+}
+
+$("#openForm").onsubmit = act(async (e) => {
+  e.preventDefault();
+  const r = await call("POST", "/api/tabs", { url: $("#openUrl").value });
+  $("#openUrl").value = "";
+  if (r?.warning) toast(r.warning);
+});
+$("#stopAll").onclick = act(async () => {
+  const r = await call("POST", "/api/stop-all");
+  toast(`Stopped ${r.stopped} tab(s)` + (r.failed ? `, ${r.failed} didn't answer` : ""));
+});
+
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>

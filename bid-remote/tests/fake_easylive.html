@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Fake EasyLive console</title></head>
+<body>
+<!-- Mimics the EasyLive live-bidding elements bidder.js reads. Lot 11 runs for 1s, then lot 12 opens;
+     a rival outbids you 300ms after every bid of yours; lot 12 closes after 6s and lot 13 opens. -->
+<div id="bid-live-lot-no"><strong>Lot 11</strong></div>
+<div class="bid-live-current-bid"><div class="h4">Asking</div><div class="current-bid">£10</div></div>
+<button id="bid-live-bid-btn">BID £12</button>
+<script>
+  let current = 10, ask = 12;
+  const $ = (s) => document.querySelector(s);
+  const show = (status) => {
+    $(".current-bid").textContent = "£" + current;
+    $("#bid-live-bid-btn").textContent = "BID £" + ask;
+    $(".h4").textContent = status;
+  };
+  window.clicks = [];
+  $("#bid-live-bid-btn").onclick = () => {
+    window.clicks.push(ask);
+    current = ask; ask += 2;
+    show("You are the highest bidder");
+    setTimeout(() => { current = ask; ask += 2; show("Competing bid"); }, 300);
+  };
+  setTimeout(() => { $("#bid-live-lot-no strong").textContent = "Lot 12"; show("Asking"); }, 1000);
+  setTimeout(() => { $("#bid-live-lot-no strong").textContent = "Lot 13"; current = 5; ask = 6; show("Asking"); }, 6000);
+</script>
+</body></html>
