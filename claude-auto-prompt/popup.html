@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="logo">↻</div>
+    <div>
+      <h1>Claude Auto-Prompt</h1>
+      <p id="status">Idle <span class="dot"></span></p>
+    </div>
+  </header>
+  <main>
+    <div class="card row">
+      <span><span class="dot" id="toggleDot"></span> Auto-Prompt</span>
+      <label class="switch"><input type="checkbox" id="enabled"><span></span></label>
+    </div>
+
+    <div class="card">
+      <label for="message">Text to send after each response</label>
+      <textarea id="message" rows="4" placeholder="e.g. Keep going."></textarea>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <label for="delay">Delay (seconds)</label>
+        <input type="number" id="delay" min="0" step="1">
+      </div>
+      <div class="card">
+        <label for="maxRuns">Max runs (0 = ∞)</label>
+        <input type="number" id="maxRuns" min="0" step="1">
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card stat"><b id="session">0</b><small>THIS SESSION</small></div>
+      <div class="card stat"><b id="total">0</b><small>ALL TIME</small></div>
+    </div>
+
+    <div class="card last" id="last">No auto-prompts yet</div>
+    <button id="reset">Reset session count</button>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

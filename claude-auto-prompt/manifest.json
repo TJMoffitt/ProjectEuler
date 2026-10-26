@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Auto-Prompt",
+  "version": "1.0.0",
+  "description": "After each completed Claude response, types your chosen text into the message box and sends it.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://claude.ai/*"],
+  "action": {
+    "default_title": "Claude Auto-Prompt",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
