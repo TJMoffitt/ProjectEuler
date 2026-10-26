@@ -11,7 +11,8 @@ chosen text into the message box and clicks send.
 
 ## Settings
 - **Text**: what gets sent after each completed response.
-- **Delay**: seconds to wait after a response finishes before sending.
+- **Wait**: how long the reply must stay unchanged, with the stop button
+  gone, before sending (minimum 2 seconds, default 5).
 - **Max runs per tab**: each tab stops after this many sends (0 = no limit),
   so it can't loop forever and burn through your usage. Switching
   Auto-Prompt off and on again resets every tab's count.
@@ -23,7 +24,8 @@ sleeping tab can't send anything; if that happens, add `claude.ai` under
 `chrome://settings/performance` → "Always keep these sites active".
 
 ## How it detects a finished run
-While Claude is writing, the page shows a "Stop" button. When that button goes
-away, the run counts as finished. If claude.ai changes its page layout, the
+While Claude is writing, the page shows a "Stop" button. A run counts as
+finished only once that button is gone and the conversation has stopped
+changing for the whole wait period. If claude.ai changes its page layout, the
 selectors in `content.js` (`findStopButton`, `findComposer`, `findSendButton`)
 may need updating.

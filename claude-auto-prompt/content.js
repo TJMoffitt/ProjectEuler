@@ -10,7 +10,7 @@
 const DEFAULTS = {
   enabled: false,
   message: "Keep going.",
-  delaySeconds: 3,
+  delaySeconds: 5,
   maxRuns: 20,
 };
 
@@ -136,23 +136,51 @@ async function sendPrompt() {
   }
 }
 
+// Time of the last change to the page outside the message box. A reply is
+// only treated as finished once Claude's stop button is gone AND nothing has
+// changed for the wait period, so pauses for thinking or tool calls, or the
+// stop button flickering mid-reply, don't trigger a send.
+let lastActivity = Date.now();
+
+function quietMs() {
+  return Math.max(2, Number(settings.delaySeconds) || 0) * 1000;
+}
+
+function schedule(ms) {
+  cancelPending();
+  pendingTimer = setTimeout(onTimer, ms);
+}
+
+function onTimer() {
+  pendingTimer = null;
+  if (!settings.enabled || sending || !wasStreaming) return;
+  if (isStreaming()) return; // the observer will reschedule when it stops
+  const remaining = lastActivity + quietMs() - Date.now();
+  if (remaining > 0) return schedule(remaining);
+  wasStreaming = false;
+  sendPrompt();
+}
+
 function check() {
   if (isStreaming()) {
     wasStreaming = true;
     cancelPending();
     return;
   }
-  if (wasStreaming && !sending) {
-    wasStreaming = false;
-    if (settings.enabled && !pendingTimer) {
-      pendingTimer = setTimeout(sendPrompt, Math.max(0, Number(settings.delaySeconds) || 0) * 1000);
-    }
+  if (wasStreaming && settings.enabled && !sending && !pendingTimer) {
+    schedule(Math.max(0, lastActivity + quietMs() - Date.now()));
   }
+}
+
+function isInComposer(node) {
+  const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  return !!el && !!el.closest('[contenteditable="true"], textarea');
 }
 
 // Coalesce bursts of DOM mutations (streaming produces many) into one check.
 let checkQueued = false;
-new MutationObserver(() => {
+new MutationObserver((mutations) => {
+  if (mutations.some((m) => !isInComposer(m.target))) lastActivity = Date.now();
   if (checkQueued) return;
   checkQueued = true;
   queueMicrotask(() => {
@@ -162,6 +190,7 @@ new MutationObserver(() => {
 }).observe(document.documentElement, {
   childList: true,
   subtree: true,
+  characterData: true,
   attributes: true,
   attributeFilter: ["aria-label", "data-is-streaming", "disabled"],
 });

@@ -1,7 +1,7 @@
 const DEFAULTS = {
   enabled: false,
   message: "Keep going.",
-  delaySeconds: 3,
+  delaySeconds: 5,
   maxRuns: 20,
   sessionCount: 0,
   totalCount: 0,
@@ -43,6 +43,6 @@ $("enabled").addEventListener("change", (e) => {
   chrome.storage.local.set(on ? { enabled: true, sessionCount: 0 } : { enabled: false });
 });
 $("message").addEventListener("input", (e) => chrome.storage.local.set({ message: e.target.value }));
-$("delay").addEventListener("change", (e) => chrome.storage.local.set({ delaySeconds: Math.max(0, +e.target.value || 0) }));
-$("maxRuns").addEventListener("change", (e) => chrome.storage.local.set({ maxRuns: Math.max(0, +e.target.value || 0) }));
+$("delay").addEventListener("change", (e) => chrome.storage.local.set({ delaySeconds: Math.max(2, +e.target.value || 0) }));
+$("maxRuns").addEventListener("change", (e) => chrome.storage.local.set({ maxRuns: Math.max(2, +e.target.value || 0) }));
 $("reset").addEventListener("click", () => chrome.storage.local.set({ sessionCount: 0 }));
