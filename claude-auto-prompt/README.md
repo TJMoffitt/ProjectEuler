@@ -12,8 +12,15 @@ chosen text into the message box and clicks send.
 ## Settings
 - **Text**: what gets sent after each completed response.
 - **Delay**: seconds to wait after a response finishes before sending.
-- **Max runs**: it switches itself off after this many sends (0 = no limit),
-  so it can't loop forever and burn through your usage.
+- **Max runs per tab**: each tab stops after this many sends (0 = no limit),
+  so it can't loop forever and burn through your usage. Switching
+  Auto-Prompt off and on again resets every tab's count.
+
+## Multiple tabs
+Every open claude.ai tab runs on its own, including tabs in the background.
+Chrome's Memory Saver can put long-unused background tabs to sleep, and a
+sleeping tab can't send anything; if that happens, add `claude.ai` under
+`chrome://settings/performance` → "Always keep these sites active".
 
 ## How it detects a finished run
 While Claude is writing, the page shows a "Stop" button. When that button goes

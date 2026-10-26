@@ -1,30 +1,41 @@
 // Claude Auto-Prompt content script.
 // Watches claude.ai for a response to finish, then types the configured
 // text into the composer and clicks send.
+//
+// Runs independently in every claude.ai tab. Chrome heavily throttles
+// timers in background tabs (down to once a minute), so instead of polling
+// we react to DOM changes with a MutationObserver, which keeps firing in
+// hidden tabs.
 
 const DEFAULTS = {
   enabled: false,
   message: "Keep going.",
   delaySeconds: 3,
   maxRuns: 20,
-  sessionCount: 0,
-  totalCount: 0,
-  lastRun: null,
 };
 
 let settings = { ...DEFAULTS };
 let wasStreaming = false;
 let pendingTimer = null;
 let sending = false;
+let tabRuns = 0; // sends from this tab since Auto-Prompt was switched on
 
-chrome.storage.local.get(DEFAULTS, (s) => { settings = s; });
+chrome.storage.local.get(DEFAULTS, (s) => {
+  settings = s;
+  check();
+});
 chrome.storage.onChanged.addListener((changes) => {
-  for (const [k, { newValue }] of Object.entries(changes)) settings[k] = newValue;
-  if (changes.enabled && !changes.enabled.newValue) cancelPending();
+  for (const [k, { newValue }] of Object.entries(changes)) {
+    if (k in DEFAULTS) settings[k] = newValue;
+  }
+  if (changes.enabled) {
+    tabRuns = 0;
+    if (!changes.enabled.newValue) cancelPending();
+  }
 });
 
 function isVisible(el) {
-  return !!el && el.offsetParent !== null;
+  return !!el && el.getClientRects().length > 0;
 }
 
 function findStopButton() {
@@ -56,6 +67,10 @@ function findSendButton() {
   return form ? form.querySelector('button[type="submit"]') : null;
 }
 
+function composerText(el) {
+  return el.tagName === "TEXTAREA" ? el.value : el.innerText;
+}
+
 function insertText(el, text) {
   el.focus();
   if (el.tagName === "TEXTAREA") {
@@ -70,23 +85,17 @@ function insertText(el, text) {
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
-  if (!document.execCommand("insertText", false, text)) {
-    el.textContent = text;
-    el.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
-  }
+  document.execCommand("insertText", false, text);
+  if (composerText(el).trim()) return;
+
+  // In a background tab execCommand can be ignored; a synthetic paste
+  // works because the editor reads the text from clipboardData.
+  const data = new DataTransfer();
+  data.setData("text/plain", text);
+  el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function waitFor(fn, timeoutMs) {
-  const end = Date.now() + timeoutMs;
-  while (Date.now() < end) {
-    const v = fn();
-    if (v) return v;
-    await sleep(150);
-  }
-  return null;
-}
 
 function cancelPending() {
   if (pendingTimer) clearTimeout(pendingTimer);
@@ -96,10 +105,7 @@ function cancelPending() {
 async function sendPrompt() {
   pendingTimer = null;
   if (!settings.enabled || sending || isStreaming()) return;
-  if (settings.maxRuns > 0 && settings.sessionCount >= settings.maxRuns) {
-    chrome.storage.local.set({ enabled: false });
-    return;
-  }
+  if (settings.maxRuns > 0 && tabRuns >= settings.maxRuns) return;
   const text = (settings.message || "").trim();
   if (!text) return;
 
@@ -109,31 +115,29 @@ async function sendPrompt() {
   sending = true;
   try {
     insertText(composer, text);
-    const btn = await waitFor(() => {
-      const b = findSendButton();
-      return b && !b.disabled ? b : null;
-    }, 3000);
-    if (btn) {
+    // Let the editor re-render so the send button becomes enabled.
+    await sleep(300);
+    const btn = findSendButton();
+    if (btn && !btn.disabled) {
       btn.click();
     } else {
-      composer.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));
+      composer.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true, cancelable: true })
+      );
     }
-    const now = Date.now();
-    chrome.storage.local.set({
-      sessionCount: (settings.sessionCount || 0) + 1,
-      totalCount: (settings.totalCount || 0) + 1,
-      lastRun: now,
-    });
+    tabRuns++;
+    // Counters are shared by every tab, so the background worker updates them.
+    chrome.runtime.sendMessage({ type: "sent" });
   } finally {
     // Give Claude a moment to start streaming before we look again.
-    await sleep(2000);
+    await sleep(1500);
     sending = false;
+    check();
   }
 }
 
-function tick() {
-  const streaming = isStreaming();
-  if (streaming) {
+function check() {
+  if (isStreaming()) {
     wasStreaming = true;
     cancelPending();
     return;
@@ -146,4 +150,18 @@ function tick() {
   }
 }
 
-setInterval(tick, 500);
+// Coalesce bursts of DOM mutations (streaming produces many) into one check.
+let checkQueued = false;
+new MutationObserver(() => {
+  if (checkQueued) return;
+  checkQueued = true;
+  queueMicrotask(() => {
+    checkQueued = false;
+    check();
+  });
+}).observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ["aria-label", "data-is-streaming", "disabled"],
+});
